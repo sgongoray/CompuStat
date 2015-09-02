@@ -1,0 +1,11 @@
+Ejemplos en Shiny:
+
+Para correrlos en tu computadora carga el paquete de shiny e ingresa la línea de código.
+Para ver el código sigue le link.
+
+12 de Agosto:
+runGitHub("truerandom", "mauriciogtec")
+github.com/mauriciogtec/truerandom
+
+runGitHub("computingPi", "mauriciogtec")
+github.com/mauriciogtec/computingPi
