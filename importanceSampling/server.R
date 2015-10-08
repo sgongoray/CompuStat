@@ -35,24 +35,17 @@ shinyServer(function(input, output) {
   
   
   N <- reactive(seq(100,input$N,by=10))
+  
   l<- reactive({
     p <- function(x){
       input$m*exp(-(input$m)*x)
     }
-    exp.is<-function(x,l){
-      U <- runif(x, 0, 1) 
-      X <- -(1/l)*log(1 - (1 - exp(-2*(l)))*U)
-    }
-    g=function(x,l){
-      dexp(x,rate=l)/(1-exp(-2*(l)))
-    }
+    exp.is<-function(x,l){ X <- -(1/l)*log(1 - (1 - exp(-2*(l)))*runif(x, 0, 1) )   }
+    g=function(x,l) dexp(x,rate=l)/(1-exp(-2*(l))) 
     l.v<-seq(.1,5*input$m,by=0.1)
     result<-lapply(l.v,function(y){
       X<- exp.is(input$N,y)
-      w <- g(X,y)
-      pX   <- sapply(X,p)
-      estim <- mean(pX/w)
-      return(estim)
+      return(mean(sapply(X,p)/g(X,y)))
     })
     results.table <- ldply(result) %>% mutate(l = l.v,Estim=V1)
   })
@@ -117,6 +110,15 @@ shinyServer(function(input, output) {
      geom_ribbon(aes(i,ymin=LI,ymax=UI), alpha=0.5,colour="blue") +
       geom_line(aes(i,Estimate)) +
       facet_wrap(~method, nrow = 2) + geom_hline(yintercept=1-exp(-2*input$m))
+  })
+  
+  output$lam<-renderPlot({
+    dat<- l() %>% mutate(method='lambda')
+    ggplot(dat) + 
+      geom_line(aes(l,Estim)) + 
+      facet_wrap(~method, nrow = 2) +
+      geom_hline(yintercept=1-exp(-2*input$m)) 
+    
   })
   
 })

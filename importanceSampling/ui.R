@@ -23,14 +23,14 @@ shinyUI(fluidPage(
                   value = 3, min = 0.1, max = 15, step = .1)
     ),
     
-    # Show a plot of the generated distribution
+    # Show a plot of the generated distribution 
     mainPanel(
-     
         plotOutput('crudo'),
         plotOutput('exponencial'),
-        plotOutput('beta')
-       
-    )
+        plotOutput('beta'),
+        plotOutput('lam')
+      )
+    
   )
-)
+  )
 )
