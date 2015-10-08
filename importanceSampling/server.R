@@ -8,62 +8,65 @@ crudo<-function(x){
   runif(x,0,2)
 }
 
-mc <- function (Phi, N, X.dens=runif, alpha=0.05){
-  result.list <- lapply(N,function(nsim){
+aux <- function (p, N, X.dens=runif, alpha=0.05){
+    result.list <- lapply(N,function(nsim){
     X<-runif(N,0,1)
-    PhiX   <- sapply(X,Phi)
-    estim <- mean(PhiX)
-    S2 <- var(PhiX)
     quant <- qnorm(alpha/2,lower.tail=FALSE)
-    int.upper <- estim + sqrt(S2/nsim)*quant
-    int.lower <- estim - sqrt(S2/nsim)*quant
-    return(data.frame(N = nsim, Estimate = estim, LI = int.lower, UI = int.upper))
+    int.up <- mean(sapply(X,p)) + sqrt(var(sapply(X,p))/nsim)*quant
+    int.low <- mean(sapply(X,p)) - sqrt(var(sapply(X,p))/nsim)*quant
+    return(data.frame(N = nsim, Estimate =  mean(sapply(X,p)), LI = int.low, UI = int.up))
   })
-  results.table <- ldply(result.list) %>% mutate(i = row_number())
-  return (results.table)
+  return (ldply(result.list) %>% mutate(i = row_number()))
 }
 
-mc.importanceSampling <- function (Phi, N, X.dens=runif,g=dunif, alpha=0.05){
+aux.is <- function (p, N, X.dens=runif,g=dunif, alpha=0.05){
   result.list <- lapply(N,function(nsim){
     X<- X.dens(N)
-    w <- sapply(X,g)
-    PhiX   <- sapply(X,Phi)
-    estim <- mean(PhiX/w)
-    S2 <- var(PhiX)
     quant <- qnorm(alpha/2,lower.tail=FALSE)
-    int.upper <- estim + sqrt(S2/nsim)*quant
-    int.lower <- estim - sqrt(S2/nsim)*quant
-    return(data.frame(N = nsim, Estimate = estim, LI = int.lower, UI = int.upper))
+    int.upper <- mean(sapply(X,p)/sapply(X,g)) + sqrt(var(sapply(X,p))/nsim)*quant
+    int.lower <- mean(sapply(X,p)/sapply(X,g)) - sqrt(var(sapply(X,p))/nsim)*quant
+    return(data.frame(N = nsim, Estimate = mean(sapply(X,p)/sapply(X,g)), LI = int.lower, UI = int.upper))
   })
   results.table <- ldply(result.list)%>% mutate(i = row_number())
   return (results.table)
 }
 
 shinyServer(function(input, output) {
+  
+  
   N <- reactive(seq(100,input$N,by=10))
-  crudo.data<-reactive({
-    phi <- function(x){
-      input$m*exp(-(input$m)*x)
-    } 
-    mc(phi,N())   
-  })
-  is.exp<-reactive({
-    phi <- function(x){
+  l<- reactive({
+    p <- function(x){
       input$m*exp(-(input$m)*x)
     }
-    exp.is<-function(x){
+    exp.is<-function(x,l){
       U <- runif(x, 0, 1) 
-      X <- -(1/input$lambda)*log(1 - (1 - exp(-2*(input$lambda)))*U)
+      X <- -(1/l)*log(1 - (1 - exp(-2*(l)))*U)
     }
-    g=function(x){
-      dexp(x,rate=input$lambda)/(1-exp(-2*(input$lambda)))
+    g=function(x,l){
+      dexp(x,rate=l)/(1-exp(-2*(l)))
     }
-    mc.importanceSampling(phi,N(),X.dens=exp.is,g=g)
-    
+    l.v<-seq(.1,5*input$m,by=0.1)
+    result<-lapply(l.v,function(y){
+      X<- exp.is(input$N,y)
+      w <- g(X,y)
+      pX   <- sapply(X,p)
+      estim <- mean(pX/w)
+      return(estim)
+    })
+    results.table <- ldply(result) %>% mutate(l = l.v,Estim=V1)
   })
   
-  is.beta<-reactive({
-    phi <- function(x){
+  crudo.d<-reactive({
+    p <- function(x){
+      input$m*exp(-(input$m)*x)
+    } 
+    aux(p,N())   
+  })
+  
+  
+  is.b<-reactive({
+    p <- function(x){
       input$m*exp(-(input$m)*x)
     }
     
@@ -74,33 +77,26 @@ shinyServer(function(input, output) {
     g=function(x){
       (.5)*dbeta(.5*x,1,3)
     }
-    mc.importanceSampling(phi,N(),X.dens=beta.is,g=g)
+    aux.is(p,N(),X.dens=beta.is,g=g)
   })
   
-  lambda<- reactive({
-    phi <- function(x){
+  is.e<-reactive({
+    p <- function(x){
       input$m*exp(-(input$m)*x)
     }
-    exp.is<-function(x,lambda){
+    exp.is<-function(x){
       U <- runif(x, 0, 1) 
-      X <- -(1/lambda)*log(1 - (1 - exp(-2*(lambda)))*U)
+      X <- -(1/input$l)*log(1 - (1 - exp(-2*(input$l)))*U)
     }
-    g=function(x,lambda){
-      dexp(x,rate=lambda)/(1-exp(-2*(lambda)))
+    g=function(x){
+      dexp(x,rate=input$l)/(1-exp(-2*(input$l)))
     }
-    lambda.v<-seq(.1,5*input$m,by=0.1)
-    result<-lapply(lambda.v,function(y){
-      X<- exp.is(input$N,y)
-      w <- g(X,y)
-      PhiX   <- sapply(X,phi)
-      estim <- mean(PhiX/w)
-      return(estim)
-    })
-    results.table <- ldply(result) %>% mutate(l = lambda.v,Estim=V1)
+    aux.is(p,N(),X.dens=exp.is,g=g)
+    
   })
   
   output$crudo <- renderPlot({
-    dat <- crudo.data() %>% mutate(i = row_number(), method='crudo')
+    dat <- crudo.d() %>% mutate(i = row_number(), method='crudo')
     ggplot(dat) +
       geom_ribbon(aes(i,ymin=LI,ymax=UI), alpha=0.5,,colour="blue") +
       geom_line(aes(i,Estimate)) +
@@ -108,7 +104,7 @@ shinyServer(function(input, output) {
   })
   
   output$exponencial <- renderPlot({
-    dat <- is.exp() %>% mutate(i = row_number(), method='exponencial')
+    dat <- is.e() %>% mutate(i = row_number(), method='exponencial')
     ggplot(dat) +
       geom_ribbon(aes(i,ymin=LI,ymax=UI), alpha=0.5,,colour="blue") +
       geom_line(aes(i,Estimate)) +
@@ -116,7 +112,7 @@ shinyServer(function(input, output) {
   })
   
   output$beta <- renderPlot({
-    dat <- is.beta() %>% mutate(i = row_number(), method='beta')
+    dat <- is.b() %>% mutate(i = row_number(), method='beta')
     ggplot(dat) +
      geom_ribbon(aes(i,ymin=LI,ymax=UI), alpha=0.5,colour="blue") +
       geom_line(aes(i,Estimate)) +
