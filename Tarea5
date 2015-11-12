@@ -47,7 +47,7 @@ lkh=0;
     // Log of target density
     return lkh + logprior;
 }')
-objdens(data, c(2,3),Y)
+objdens(X, Y, c(1,2,3,4,5))
 
 # 2) Proposal: random walk in the same dimension as the number of parameters
 cppFunction('
